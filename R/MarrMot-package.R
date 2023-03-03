@@ -1,3 +1,6 @@
+#' @import magrittr data.table
+#' @importFrom JuliaCall julia_library julia_call
+#' 
 #' @import magrittr
 #' @keywords internal
 "_PACKAGE"
