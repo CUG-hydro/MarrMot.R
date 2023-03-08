@@ -1,9 +1,8 @@
-
 # MarrMot in R
 
 <!-- badges: start -->
-[![R-CMD-check](https://github.com/rpkgs/rpkg-template/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/rpkgs/rpkg-template/actions/workflows/R-CMD-check.yaml)
-[![codecov](https://codecov.io/gh/rpkgs/MarrMot/branch/master/graph/badge.svg)](https://app.codecov.io/gh/rpkgs/MarrMot)
+[![R-CMD-check](https://github.com/CUG-hydro/MarrMot.R/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/CUG-hydro/MarrMot.R/actions/workflows/R-CMD-check.yaml)
+[![codecov](https://codecov.io/gh/CUG-hydro/MarrMot.R/branch/master/graph/badge.svg)](https://app.codecov.io/gh/CUG-hydro/MarrMot.R)
 <!-- [![CRAN](http://www.r-pkg.org/badges/version/MarrMot)](https://cran.r-project.org/package=MarrMot) -->
 <!-- [![total](http://cranlogs.r-pkg.org/badges/grand-total/MarrMot)](https://www.rpackages.io/package/MarrMot) -->
 <!-- [![monthly](http://cranlogs.r-pkg.org/badges/MarrMot)](https://www.rpackages.io/package/MarrMot) -->

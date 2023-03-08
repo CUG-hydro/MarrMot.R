@@ -1,0 +1,119 @@
+```{r}
+devtools::load_all()
+library(MarrMot)
+library(Ipaper)
+library(dplyr)
+library(hydroTools)
+library(sf)
+library(data.table)
+library(magrittr)
+
+split_site <- function(x, site = "name") {
+  split(select(x, -all_of(site)), x[[site]])
+}
+```
+
+```{r}
+indir <- "Z:/DATA/China/ChinaRunoff_latest/ChinaBasins"
+
+shp <- read_sf(glue("{indir}/ChinaBasins_(塔河+雅江+长江+黄河+珠江)-sp375_v0.1.0.shp"))
+lst <- readRDS(glue("{indir}/ChinaBasins_气象驱动-sp375.RDS")) # meteorological forcing
+load(glue("{indir}/ChinaBasins_(塔河+雅江+长江+黄河+珠江)-sp375_v0.1.0.rda")) # runoff data
+
+get_input <- function(site) {
+  shp_i <- shp %>% subset(name == site)
+  lat <- st_coordinates(shp_i) %>%
+    {
+      mean(.[, 2])
+    }
+  area <- shp_i$area_w_km2 * 1e4 # km^2
+
+  forcing <- lst[[site]][year(date) >= 2012] %>%
+    set_names(c("date", "Rl", "prcp", "Pa", "q", "Rsi", "Tavg", "Tmax", "Tmin", "U10"))
+  forcing <- forcing %>%
+    mutate(
+      prcp = round(prcp * 24, 2), # mm hr-1, mm/d
+      Pa = Pa / 1e3, # Pa, kPa
+      Tavg = K2T(Tavg),
+      Tmax = K2T(Tmax),
+      Tmin = K2T(Tmin),
+      # RH = q2RH(q, Tavg, Pa), # kg/kg, kPa
+      ea = q2ea(q, Pa),
+      # D2 = cal_es(Tavg) - ea,
+      D = (cal_es(Tmin) + cal_es(Tmax)) / 2 - ea,
+      Rn = cal_Rn(lat, date, Rsi, Tmin, Tmax, ea = ea)$Rn,
+      ET0 = ET0_FAO98(Rn, Tavg, Pa, D, U10, z.wind = 10)$ET0
+    )
+  data <- df_river[name == site][year(date) >= 2002, -(1:2)] %>%
+    dplyr::rename(Qobs = Q) %>%
+    merge(forcing[, .(date, prcp, ET0)])
+  list(data = data, area = area, lat = lat, site = site)
+}
+
+# srad: `W m-2`
+# lrad: `W m-2`
+# MJ m-2 d-1
+```
+
+```{r}
+```{r}
+# 水库："万家寨上"
+sites = c(
+  "巴彦高勒", "三湖河口", "包头", "头道拐", "府谷"
+) # , "温家川"
+
+l_Q  = df_river[name %in% sites] %>% split_site() %>% .[sites]
+l_met = lst_mete[sites]
+shps = shps_all %>% subset(name %in% sites) %>% 
+  mutate(name = factor(name, sites)) %>% arrange(name)
+
+
+l_forcing = foreach(d_Q = l_Q, d_met = l_met, i = icount()) %do% {
+  shp = shps[i,]
+  area = shp$area_w_km2
+  
+  d = merge(d_Q, d_met) %>% 
+    mutate(area_w = area, R = Q2R(Q, area*1e4), .before = "Q")
+}
+
+info[name %in% sites]
+```
+
+```{r}
+
+# 统计每个站点的数据开始时间和缺测时间，以及数据缺失情况
+get_baseInfo <- function(d) {
+  date_begin = min(d$date)
+  date_end = max(d$date)
+  
+  dates_full = seq(date_begin, date_end, by = "day")
+  n_all = length(dates_full)
+  n_valid = sum(!is.na(d$Q))
+  n_miss = n_all - n_valid
+  perc_miss = n_miss / n_all * 100
+
+  sname = c("min", "1st.Qu.", "median", "3rd.Qu", "max")
+  d2 = quantile(d$Q, c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE) %>% 
+    set_names(paste0("Q_", sname)) %>% as.list() %>% as.data.table()
+  # d2 = summary(d$Q) %>% 
+  data.table(date_begin, date_end, n_all, n_valid, n_miss, perc_miss) %>% 
+    cbind(d2)
+}
+
+info_Q = map(l_Q, get_baseInfo) %>% melt_list("site") %>% 
+  mutate(site = factor(site, sites)) %>% 
+  arrange(site)
+info_Q 
+```
+
+```{r}
+info_Q %>% select(site, Q_min:Q_max)
+```
+
+> 结论：
+- 温家川：属于小流域
+- 包头：流域面积提取错误
+
+```{r}
+save(l_Q, l_met, shps, l_forcing, info_Q, file = "data-raw/鄂尔多斯_水文数据.rda")
+```

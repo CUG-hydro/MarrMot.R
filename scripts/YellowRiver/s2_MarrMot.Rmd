@@ -1,0 +1,69 @@
+```{r}
+devtools::load_all()
+library(MarrMot)
+library(Ipaper)
+library(dplyr)
+library(hydroTools)
+
+split_site <- function(x, site = "name") {
+  split(select(x, -all_of(site)), x[[site]])
+}
+
+cal_ET0 <- function(d, lat) {
+  # set_names(c("date", "Rl", "prcp", "Pa", "q", "Rsi", "Tavg", "Tmax", "Tmin", "U10"))
+  d %>% 
+    rename(prcp = prec, Pa = pres, Rsi = srad, q = shum, Tavg = temp, U10 = wind) %>% 
+    mutate(
+      prcp = round(prcp * 24, 2), # mm hr-1, mm/d
+      Pa = Pa / 1e3, # Pa, kPa
+      Tavg = K2T(Tavg),
+      Tmax = K2T(Tmax),
+      Tmin = K2T(Tmin),
+      # RH = q2RH(q, Tavg, Pa), # kg/kg, kPa
+      ea = q2ea(q, Pa),
+      # D2 = cal_es(Tavg) - ea,
+      D = (cal_es(Tmin) + cal_es(Tmax)) / 2 - ea,
+      Rn = cal_Rn(lat, date, Tmin, Tmax, ea = ea, Rsi = Rsi)$Rn,
+      ET0 = ET0_FAO98(Rn, Tavg, Pa, D, U10, z.wind = 10)$ET0
+    )
+}
+```
+
+```{r}
+f_data = "data-raw/鄂尔多斯_水文数据.rda"
+
+save(l_Q, l_met, l_forcing, info_Q, shps, 
+  file = f_data)
+```
+
+
+## MarrMot实战
+
+```{r}
+sites = df$site %>% unique()
+sitename = "头道拐"
+d = df[site == sitename] %>% 
+  select(site, date, area_w, Q, R, prcp, pet = ET0, tair = Tavg) %>% 
+  na.omit()
+
+r = MarrMot_calib(d, models_all[1:46], maxn = 500)
+
+# KGE就只有0.53左右
+info = r$info %>% 
+  arrange(desc(KGE)) %>% 
+  data.table()
+
+# model = "m_23_lascam_24p_3s"
+# par = r$param[[model]]$par
+# d$Rsim = MarrMot_predict(d, par, model)
+```
+
+```{r}
+dat = d %>% select(date, Robs = R, Rsim) %>% melt("date")
+
+# 表现非常差，不能实际使用
+p = ggplot(dat, aes(date, value, color = variable)) + 
+  geom_line()
+write_fig(p, 'Rplot.pdf', 10, 5)
+```
+

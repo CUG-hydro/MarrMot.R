@@ -1,0 +1,42 @@
+```{r}
+library(Ipaper)
+library(data.table)
+
+f = "Z:/DATA/China/2400climate data/ChinaMeteDaily_SURF_CLI_CHN_MUL_DAY_[195101,202003]_processed.csv"
+
+df = fread(f, select=1:4)#[, 1:4]
+```
+
+
+```{r}
+# 转换为monthly
+df_mon = df[, map(.SD, mean, na.rm = TRUE), .(site, date_ym(date))] 
+
+# 应该加一个进度条
+info = df[, map(.SD, ~ sum(!is.na(.x))), .(site, date_ym(date))] 
+
+info %<>% 
+  mutate(
+    n_all = days_in_month(date_ym), 
+    n_miss_sm = n_all - EVP_sm, 
+    n_miss_bg = n_all - EVP_bg)
+```
+
+```{r}
+# varname = "EVP_sm"
+type = "_sm"
+
+.info = info %>% select(site, date_ym, contains(type)) %>% 
+  set_names(c("site", "date", "n_valid", "n_miss"))
+
+data = df_mon %>% select(site, date = date_ym, y = contains(type)) 
+data = merge(data, .info[n_miss <= 5]) %>% select(site:y) %>% na.omit()
+
+# 转换为year
+data_year = data[, .(y = mean(y, na.rm = TRUE), n_valid = length(y)), .(site, year(date))] %>% 
+  .[n_valid >= 11, ]
+
+data_year[, .N, year] %>% 
+  arrange(year) %>% 
+  print(n = 1000)
+```
